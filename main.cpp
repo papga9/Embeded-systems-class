@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 Mutex stdio_mutex;
-Mutex forks[5];
+Semaphore forks(5);
 
 Thread Thread2(osPriorityNormal, 1024);
 Thread Thread3(osPriorityNormal, 1024);
@@ -21,45 +21,32 @@ void Notify(int num, int state){
     stdio_mutex.unlock();
 }
 
-void philosopher(const int *num){
-    int philNum = (int)num;
+void philosopher(void *args){
+    int philNum = (int)args;
 
     while (true) {
-        if(forks[philNum - 1].trylock()){
-            if(forks[philNum % 5].trylock()){
-                Notify(philNum, 1);
-                ThisThread::sleep_for(
-                    chrono::milliseconds(rand() % 1000 + 1000)
-                );
-                forks[philNum % 5].unlock();
-                forks[philNum - 1].unlock();
-                Notify(philNum, 0);
-                ThisThread::sleep_for(
-                    chrono::milliseconds(rand() % 2000 + 2000)
-                );
-            }
-            else {
-                forks[philNum - 1].unlock();
-                ThisThread::sleep_for(
-                    chrono::milliseconds(rand() % 100 + 100)
-                );
-            }
-        }
-        else {
-            ThisThread::sleep_for(
-                chrono::milliseconds(rand() % 100 + 100)
-            );
-        }
+        Notify(philNum, 1);
+        ThisThread::sleep_for(
+            chrono::milliseconds(rand() % 1000 + 1000)
+        );
+        forks.acquire();
+        forks.acquire();
+        Notify(philNum, 0);
+        ThisThread::sleep_for(
+            chrono::milliseconds(rand() % 1000 + 500)
+        );
+        forks.release();
+        forks.release();
     }
 }
 
 int main()
 {
-    Thread2.start(callback(philosopher, (const int *)2));
-    Thread3.start(callback(philosopher, (const int *)2));
-    Thread4.start(callback(philosopher, (const int *)2));
-    Thread5.start(callback(philosopher, (const int *)2));
-    philosopher((const int *)1);
+    Thread2.start(callback(philosopher, (void *)2));
+    Thread3.start(callback(philosopher, (void *)3));
+    Thread4.start(callback(philosopher, (void *)4));
+    Thread5.start(callback(philosopher, (void *)5));
+    philosopher((void *)1);
 }
 
 
