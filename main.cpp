@@ -1,52 +1,67 @@
 #include "mbed.h"
 #include "rtos.h"
 #include <chrono>
-#include <cstdlib>
+#include <ratio>
 
-Mutex stdio_mutex;
-Semaphore forks(5);
+Thread t2(osPriorityNormal, 1024);
+Thread t3(osPriorityNormal, 1024);
 
-Thread Thread2(osPriorityNormal, 1024);
-Thread Thread3(osPriorityNormal, 1024);
-Thread Thread4(osPriorityNormal, 1024);
-Thread Thread5(osPriorityNormal, 1024);
+Semaphore sem1(1);
+Semaphore sem2(1);
+Semaphore sem3(0);
 
-void Notify(int num, int state){
-    stdio_mutex.lock();
-    if(state){
-        printf("Philosopher %d is eating \n\r", num);
-    } else{
-        printf("Philosopher %d is thinking \n\r", num);
+DigitalOut led1(LED1);
+DigitalOut led2(LED2);
+DigitalOut led3(LED3);
+
+void thread1() {
+    while(true) {
+        sem1.acquire();
+        led1 = 0;
+        ThisThread::sleep_for(
+            chrono::milliseconds(rand() % 2000)
+        );
+        led1 = 1;
+        sem3.release();
     }
-    stdio_mutex.unlock();
 }
 
-void philosopher(void *args){
-    int philNum = (int)args;
+void thread2() {
+    while(true) {
+        sem2.acquire();
+        led2 = 0;
+        ThisThread::sleep_for(
+            chrono::milliseconds(rand() % 2000)
+        );
+        led2 = 1;
+        sem3.release();
+    }
+}
 
-    while (true) {
-        Notify(philNum, 1);
-        ThisThread::sleep_for(
-            chrono::milliseconds(rand() % 1000 + 1000)
-        );
-        forks.acquire();
-        forks.acquire();
-        Notify(philNum, 0);
-        ThisThread::sleep_for(
-            chrono::milliseconds(rand() % 1000 + 500)
-        );
-        forks.release();
-        forks.release();
+void thread3() {
+    while(true) {
+        sem3.acquire();
+        sem3.acquire();
+        led3 = 1;
+        for(int i=0; i<9; i++){
+            ThisThread::sleep_for(chrono::milliseconds(1000));
+            led3 == 1 ? led3 = 0 : led3 = 1;
+        }
+        
+        led3 = 0;
+        sem1.release();
+        sem2.release();
     }
 }
 
 int main()
 {
-    Thread2.start(callback(philosopher, (void *)2));
-    Thread3.start(callback(philosopher, (void *)3));
-    Thread4.start(callback(philosopher, (void *)4));
-    Thread5.start(callback(philosopher, (void *)5));
-    philosopher((void *)1);
+    led1 = 1;
+    led2 = 1;
+    led3 = 1;
+    t2.start(thread2);
+    t3.start(thread3);
+    thread1();
 }
 
 
