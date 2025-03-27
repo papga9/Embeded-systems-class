@@ -14,43 +14,37 @@ PwmOut red(LED_RED);
 PwmOut green(LED_GREEN);
 PwmOut blue(LED_BLUE);
 
-//tread
 Thread ThIMU(osPriorityNormal, 2048);
-
-//IMU
 MMA8451Q IMU(PTE25, PTE24, 0x3A);
 
 typedef struct {
     float acc_x;
     float acc_y;
     float acc_z;
-} message_t;
+} mail_t;
 
-//Queue and Pool object
-Queue<message_t, 1> queue;
-MemoryPool<message_t, 1> mpool;
+Mail<mail_t, 16> mail_box;
 
 void GetIMU(){
     while(true){
-        message_t *message = mpool.alloc();
-        message->acc_x = IMU.getAccX();
-        message->acc_y = IMU.getAccY();
-        message->acc_z = IMU.getAccZ();
-        queue.put(message);
+        mail_t *mail = mail_box.try_alloc();
+        mail->acc_x = IMU.getAccX();
+        mail->acc_y = IMU.getAccY();
+        mail->acc_z = IMU.getAccZ();
+        mail_box.put(mail);
         ThisThread::sleep_for(50ms);
     }
 }
 
 void SetLED(){
     while(true){
-        osEvent evt = queue.get();
-        if (evt.status == osEventMessage){
-            message_t *message = (message_t*)evt.value.p;
-            red.write(message->acc_x);
-            green.write(message->acc_y);
-            blue.write(message->acc_z);
-            printf("x: %f, y: %f, z: %f \n", message->acc_x, message->acc_y, message->acc_z);
-            mpool.free(message);
+        mail_t *mail = mail_box.try_get();
+        if (mail != nullptr){
+            red.write(mail->acc_x);
+            green.write(mail->acc_y);
+            blue.write(mail->acc_z);
+            printf("x: %f, y: %f, z: %f \n", mail->acc_x, mail->acc_y, mail->acc_z);
+            mail_box.free(mail);
         }
     }
 }
