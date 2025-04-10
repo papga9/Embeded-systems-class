@@ -13,10 +13,10 @@
 
 Timer timer;
 
-Semaphore sem1(1);
-Semaphore sem2(1);
-Semaphore sem3(1);
-Semaphore sem4(0);
+Semaphore sem1(0);
+Semaphore sem2(0);
+Semaphore sem3(0);
+Semaphore sem4(1);
 
 PwmOut redLed   (LED_RED);
 PwmOut greenLed (LED_GREEN);
@@ -30,10 +30,9 @@ Thread Thread3(osPriorityNormal, 1024);
 Thread Thread4(osPriorityNormal, 1024);
 
 typedef struct {
-    float currPercent;
-    float redPercentage;
-    float greenPercentage;
-    float bluePercentage;
+    float redPercentage = 0;
+    float greenPercentage = 0;
+    float bluePercentage = 0;
 } mail_t;
 
 Mail<mail_t, 1> mail_box;
@@ -46,7 +45,6 @@ void GetTSI() {
 
         mail_t *mail = mail_box.try_alloc();
         if (mail != nullptr) {
-        mail->currPercent = tsi.readPercentage();
         mail_box.put(mail);
     }
     ThisThread::sleep_for(100ms);
@@ -58,28 +56,37 @@ void GetTSI() {
 
 void thread1() {
     float perc = 0.0;
+    float green;
+    float blue;
+
     while(true) {
         printf("Thread1 \n");
         sem1.acquire();
+        
+        redLed.write(1);
+        greenLed.write(1);
+        blueLed.write(1);
 
         mail_t *mail = mail_box.try_get();
-        if (mail != nullptr) {
-            redLed.write(mail->currPercent);
-            mail_box.free(mail);
-        }
+        green = mail->greenPercentage;
+        blue = mail->bluePercentage;
+        mail_box.free(mail);
 
-        ThisThread::sleep_for(100ms);
-        if(timer.read() >= 10) {
-            mail_t *mail = mail_box.try_alloc();
-            if (mail != nullptr) {
-                mail->redPercentage = mail->currPercent;
-                mail_box.put(mail);
-                sem2.release();
-                timer.reset();
-            }
+        while(timer.read() < 10){
+            
+            if (tsi.readPercentage() != 0.0) perc = tsi.readPercentage();
+            redLed.write(perc);
+            ThisThread::sleep_for(100ms);
         }
-        else {
-            printf("th1, %f\n", timer.read());
+        mail_t *newMail = mail_box.try_alloc();
+        if (newMail != nullptr) {
+            newMail->redPercentage = perc;
+            newMail->greenPercentage = green;
+            newMail->bluePercentage = blue;
+            mail_box.put(newMail);
+            sem2.release();
+            printf("extra melanin");
+            timer.reset();
         }
     }
 }
@@ -87,28 +94,37 @@ void thread1() {
 void thread2() {
     printf("Thread2 \n");
     float perc = 0.0;
+    float red;
+    float blue;
+
     while(true) {
         printf("Thread2 \n");
         sem2.acquire();
 
+        redLed.write(1);
+        greenLed.write(1);
+        blueLed.write(1);
+
         mail_t *mail = mail_box.try_get();
-        if (mail != nullptr) {
-            greenLed.write(mail->currPercent);
-            mail_box.free(mail);
+        red = mail->redPercentage;
+        blue = mail->bluePercentage;
+        mail_box.free(mail);
+
+        while(timer.read() < 10){
+            
+            if (tsi.readPercentage() != 0.0) perc = tsi.readPercentage();
+            greenLed.write(perc);
+            ThisThread::sleep_for(100ms);
         }
-        
-        ThisThread::sleep_for(100ms);
-        if(timer.read() >= 10) {
-            mail_t *mail = mail_box.try_alloc();
-            if (mail != nullptr) {
-                mail->greenPercentage = mail->currPercent;
-                mail_box.put(mail);
-                sem3.release();
-                timer.reset();
-            }
-        }
-        else {
-            printf("th2, %f\n", timer.read());
+        mail_t *newMail = mail_box.try_alloc();
+        if (newMail != nullptr) {
+            newMail->redPercentage = red;
+            newMail->greenPercentage = perc;
+            newMail->bluePercentage = blue;
+            mail_box.put(newMail);
+            sem3.release();
+            printf("extra melanin");
+            timer.reset();
         }
     }
 }
@@ -116,27 +132,36 @@ void thread2() {
 void thread3() {
     printf("Thread3 \n");
     float perc = 0.0;
+    float red;
+    float green;
     while(true) {
         printf("Thread3 \n");
         sem3.acquire();
-         mail_t *mail = mail_box.try_get();
-        if (mail != nullptr) {
-            blueLed.write(mail->currPercent);
-            mail_box.free(mail);
+
+        redLed.write(1);
+        greenLed.write(1);
+        blueLed.write(1);
+
+        mail_t *mail = mail_box.try_get();
+        green = mail->greenPercentage;
+        red = mail->redPercentage;
+        mail_box.free(mail);
+
+        while(timer.read() < 10){
+            
+            if (tsi.readPercentage() != 0.0) perc = tsi.readPercentage();
+            blueLed.write(perc);
+            ThisThread::sleep_for(100ms);
         }
-        
-        ThisThread::sleep_for(100ms);
-        if(timer.read() >= 10) {
-            mail_t *mail = mail_box.try_alloc();
-            if (mail != nullptr) {
-                mail->bluePercentage = mail->currPercent;
-                mail_box.put(mail);
-                sem4.release();
-                timer.reset();
-            }
-        }
-        else {
-            printf("th3, %f\n", timer.read());
+        mail_t *newMail = mail_box.try_alloc();
+        if (newMail != nullptr) {
+            newMail->redPercentage = red;
+            newMail->greenPercentage = green;
+            newMail->bluePercentage = perc;
+            mail_box.put(newMail);
+            sem4.release();
+            printf("extra melanin");
+            timer.reset();
         }
     }
 }
@@ -144,23 +169,55 @@ void thread3() {
 void thread4() {
     printf("wohoo");
     float perc = 0.0;
+    float red = 0.0;
+    float green = 0.0;
+    float blue = 0.0;
     while(true) {
         printf("Thread4 \n");
         sem4.acquire();
-        perc = tsi.readPercentage();
+        perc = 0.0;
 
         mail_t *mail = mail_box.try_get();
         if (mail != nullptr) {
+            red = mail->redPercentage;
             redLed.write(mail->redPercentage);
+            green = mail->greenPercentage;
             greenLed.write(mail->greenPercentage);
+            blue = mail->bluePercentage;
             blueLed.write(mail->bluePercentage);
+            mail_box.free(mail);
         }
         ThisThread::sleep_for(100ms);
+        printf("read: %f\n", tsi.readPercentage());
 
-        if (perc != 0.0) {
-            sem1.release();
+        timer.reset();
+        bool reverse = false;
+
+        while (perc <= 0.1) {
+            float time = timer.read();
+            if (timer.read() <= 1) {
+                if (reverse)
+                {
+                   redLed.write(1 - red * time);
+                greenLed.write(1 - green * time);
+                blueLed.write(1 - blue * time); 
+                }
+                redLed.write(red * time);
+                greenLed.write(green * time);
+                blueLed.write(blue * time);
+            }
+            else {
             timer.reset();
+            reverse = !reverse;
+            }
+            perc = tsi.readPercentage();
+            ThisThread::sleep_for(100ms);
         }
+        redLed.write(0);
+        greenLed.write(0);
+        blueLed.write(0);
+        sem1.release();
+        timer.reset();
     }
 }
 
@@ -171,13 +228,13 @@ int main()
     greenLed.period(30);
     blueLed.period(30);
 
-    redLed.write(0.5);
-    greenLed.write(0.5);
-    blueLed.write(0.5);
+    redLed.write(1);
+    greenLed.write(1);
+    blueLed.write(1);
 
-    ThreadTSI.start(GetTSI);
-    thread1();
     Thread2.start(thread2);
     Thread3.start(thread3);
     Thread4.start(thread4);
+    thread1();
+    
 }
