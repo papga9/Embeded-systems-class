@@ -50,5 +50,5 @@ int main()
 {
     printf("hallo");
     thread1.start(calibrate);
-    
+    thread1.join();    
 }
